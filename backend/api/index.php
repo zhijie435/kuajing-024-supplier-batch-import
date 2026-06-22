@@ -405,6 +405,48 @@ switch ($action) {
         }
         break;
 
+    case 'supplier_list':
+        $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+        $pageSize = isset($_GET['pageSize']) ? max(1, (int)$_GET['pageSize']) : 20;
+        $keyword = isset($_GET['keyword']) ? trim($_GET['keyword']) : '';
+        try {
+            require_once __DIR__ . '/../classes/Database.php';
+            $db = Database::getInstance();
+            $offset = ($page - 1) * $pageSize;
+            $where = 'WHERE 1=1';
+            $params = [];
+            if (!empty($keyword)) {
+                $where .= ' AND (company_name LIKE :kw OR unified_social_credit_code LIKE :kw OR contact_name LIKE :kw OR contact_phone LIKE :kw)';
+                $params['kw'] = '%' . $keyword . '%';
+            }
+            $sql = "SELECT * FROM supplier_kyb {$where} ORDER BY created_at DESC LIMIT :offset, :pageSize";
+            $list = $db->fetchAll($sql, array_merge($params, [
+                'offset' => (int)$offset,
+                'pageSize' => (int)$pageSize,
+            ]));
+            $countSql = "SELECT COUNT(*) as cnt FROM supplier_kyb {$where}";
+            $total = $db->fetch($countSql, $params);
+            echo json_encode([
+                'code' => 0,
+                'message' => 'success',
+                'data' => [
+                    'list' => $list,
+                    'pagination' => [
+                        'page' => $page,
+                        'pageSize' => $pageSize,
+                        'total' => (int)$total['cnt'],
+                        'totalPages' => (int)ceil($total['cnt'] / $pageSize),
+                    ],
+                ],
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            echo json_encode([
+                'code' => 1,
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE);
+        }
+        break;
+
     case 'supplier_add_operation_log':
         $operator = $_POST['operator'] ?? $_GET['operator'] ?? 'system';
         $operationType = $_POST['operation_type'] ?? $_GET['operation_type'] ?? '';
@@ -433,7 +475,7 @@ switch ($action) {
     default:
         echo json_encode([
             'code' => 0,
-            'message' => 'Supported actions: get_translations, translate, get_meta, get_rates, convert, refresh_rates, get_courses, supplier_import_template, supplier_import_upload, supplier_import_process, supplier_import_tasks, supplier_import_fail_details, supplier_import_fail_export, supplier_operation_logs, supplier_add_operation_log',
+            'message' => 'Supported actions: get_translations, translate, get_meta, get_rates, convert, refresh_rates, get_courses, supplier_list, supplier_import_template, supplier_import_upload, supplier_import_process, supplier_import_tasks, supplier_import_fail_details, supplier_import_fail_export, supplier_operation_logs, supplier_add_operation_log',
         ], JSON_UNESCAPED_UNICODE);
 }
 

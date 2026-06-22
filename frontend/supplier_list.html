@@ -109,21 +109,21 @@
       </div>
     </div>
 
-    <ImportModal
+    <import-modal
       :visible="showImport"
       :t="t"
       @close="showImport = false"
       @success="handleImportSuccess"
     />
 
-    <ImportHistoryModal
+    <import-history-modal
       :visible="showHistory"
       :t="t"
       @close="showHistory = false"
       @view-fail="handleViewFail"
     />
 
-    <FailDetailModal
+    <fail-detail-modal
       :visible="showFailDetail"
       :task-id="currentTaskId"
       :t="t"

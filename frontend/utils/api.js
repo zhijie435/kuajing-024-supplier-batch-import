@@ -1,5 +1,5 @@
 function buildURL(action, params = {}) {
-  const u = new URL('backend/api/index.php', window.location.href);
+  const u = new URL('../backend/api/index.php', window.location.href);
   u.searchParams.set('action', action);
   try {
     const lang = localStorage.getItem('lang');
@@ -78,10 +78,12 @@ export const api = {
   getCourses: () => request('get_courses'),
 
   getSupplierList: (params) => request('supplier_list', params),
-  getSupplierImportTemplateURL: () => downloadURL('supplier_import_template'),
+  getSupplierImportTemplateURL: (operator = 'admin') => downloadURL('supplier_import_template', { operator }),
   uploadSupplierImport: (file, operator) => upload('supplier_import_upload', file, { operator }),
-  processSupplierImport: (taskId) => post('supplier_import_process', { task_id: taskId }),
+  processSupplierImport: (taskId, operator = 'admin') => post('supplier_import_process', { task_id: taskId, operator }),
   getSupplierImportTasks: (params) => request('supplier_import_tasks', params),
   getSupplierImportFailDetails: (params) => request('supplier_import_fail_details', params),
-  getSupplierImportFailExportURL: (taskId) => downloadURL('supplier_import_fail_export', { task_id: taskId }),
+  getSupplierImportFailExportURL: (taskId, operator = 'admin') => downloadURL('supplier_import_fail_export', { task_id: taskId, operator }),
+  getSupplierOperationLogs: (params) => request('supplier_operation_logs', params),
+  addSupplierOperationLog: (params) => post('supplier_add_operation_log', params),
 };

@@ -12,8 +12,7 @@ async function bootstrap() {
   await i18n.init();
   const t = i18n.t.bind(i18n);
 
-  createApp({
-    components: { ImportModal, FailDetailModal, ImportHistoryModal },
+  const app = createApp({
     setup() {
       const list = ref([]);
       const loading = ref(false);
@@ -121,7 +120,11 @@ async function bootstrap() {
         handleViewFail,
       };
     },
-  }).mount('#app');
+  });
+  app.component('import-modal', ImportModal);
+  app.component('fail-detail-modal', FailDetailModal);
+  app.component('import-history-modal', ImportHistoryModal);
+  app.mount('#app');
 }
 
 bootstrap();

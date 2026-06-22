@@ -95,13 +95,13 @@ class I18n
     {
         $targetLang = $lang ?? self::$lang;
         $chain = [];
-        if ($targetLang !== self::$defaultLang) {
-            $chain[] = $targetLang;
-        }
-        if ($targetLang !== self::$fallbackLang && self::$fallbackLang !== self::$defaultLang) {
+        $chain[] = $targetLang;
+        if (self::$fallbackLang !== $targetLang) {
             $chain[] = self::$fallbackLang;
         }
-        $chain[] = self::$defaultLang;
+        if (self::$defaultLang !== $targetLang && self::$defaultLang !== self::$fallbackLang) {
+            $chain[] = self::$defaultLang;
+        }
         foreach ($chain as $l) {
             $val = self::getByPath(self::$translations[$l] ?? [], $key);
             if ($val !== null) {
