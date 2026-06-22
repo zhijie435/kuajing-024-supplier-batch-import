@@ -95,10 +95,10 @@ class I18n
     {
         $targetLang = $lang ?? self::$lang;
         $chain = [];
-        if ($targetLang !== self::$defaultLang && $targetLang !== self::$fallbackLang) {
+        if ($targetLang !== self::$defaultLang) {
             $chain[] = $targetLang;
         }
-        if (self::$fallbackLang !== self::$defaultLang) {
+        if ($targetLang !== self::$fallbackLang && self::$fallbackLang !== self::$defaultLang) {
             $chain[] = self::$fallbackLang;
         }
         $chain[] = self::$defaultLang;

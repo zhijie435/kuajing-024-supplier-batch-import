@@ -19,6 +19,16 @@ if ($lang) {
     I18n::setLang($lang);
 }
 
+$importHelper = null;
+function getImportHelper() {
+    global $importHelper;
+    if ($importHelper === null) {
+        require_once __DIR__ . '/../classes/ImportHelper.php';
+        $importHelper = new ImportHelper();
+    }
+    return $importHelper;
+}
+
 switch ($action) {
     case 'get_translations':
         $translations = I18n::getAllTranslations();
@@ -108,10 +118,322 @@ switch ($action) {
         ], JSON_UNESCAPED_UNICODE);
         break;
 
+    case 'supplier_import_template':
+        $operator = $_GET['operator'] ?? $_POST['operator'] ?? 'system';
+        try {
+            $helper = getImportHelper();
+            $helper->addOperationLog(
+                $operator,
+                ImportHelper::OP_DOWNLOAD_TEMPLATE,
+                ImportHelper::OP_STATUS_SUCCESS,
+                null,
+                '下载导入模板'
+            );
+            $helper->generateTemplateCSV();
+        } catch (Exception $e) {
+            $helper = getImportHelper();
+            $helper->addOperationLog(
+                $operator,
+                ImportHelper::OP_DOWNLOAD_TEMPLATE,
+                ImportHelper::OP_STATUS_FAIL,
+                null,
+                '下载模板失败: ' . $e->getMessage()
+            );
+            echo json_encode([
+                'code' => 1,
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE);
+        }
+        break;
+
+    case 'supplier_import_upload':
+        $operator = $_POST['operator'] ?? 'system';
+        $helper = getImportHelper();
+        try {
+            if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+                throw new Exception('请选择要上传的文件');
+            }
+            $file = $_FILES['file'];
+            $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            if ($ext !== 'csv') {
+                throw new Exception('仅支持CSV格式文件');
+            }
+            if ($file['size'] > 10 * 1024 * 1024) {
+                throw new Exception('文件大小不能超过10MB');
+            }
+            if ($file['size'] === 0) {
+                throw new Exception('文件内容不能为空');
+            }
+            global $config;
+            $uploadDir = $config['upload']['dir'] . 'supplier_import/';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+            $fileName = 'import_' . date('YmdHis') . '_' . uniqid() . '.csv';
+            $filePath = $uploadDir . $fileName;
+            if (!move_uploaded_file($file['tmp_name'], $filePath)) {
+                throw new Exception('文件上传失败');
+            }
+            $totalRows = 0;
+            $handle = fopen($filePath, 'r');
+            if ($handle) {
+                while (fgetcsv($handle) !== false) {
+                    $totalRows++;
+                }
+                fclose($handle);
+                $totalRows = max(0, $totalRows - 1);
+            }
+            $taskId = $helper->createTask($file['name'], $filePath, $totalRows, $operator);
+            $helper->addOperationLog(
+                $operator,
+                ImportHelper::OP_UPLOAD_FILE,
+                ImportHelper::OP_STATUS_SUCCESS,
+                $taskId,
+                "上传文件成功: {$file['name']}, 共 {$totalRows} 行数据"
+            );
+            echo json_encode([
+                'code' => 0,
+                'message' => '上传成功',
+                'data' => [
+                    'task_id' => $taskId,
+                    'file_name' => $file['name'],
+                    'total_rows' => $totalRows,
+                ],
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            $helper->addOperationLog(
+                $operator,
+                ImportHelper::OP_UPLOAD_FILE,
+                ImportHelper::OP_STATUS_FAIL,
+                null,
+                '文件上传失败: ' . $e->getMessage()
+            );
+            echo json_encode([
+                'code' => 1,
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE);
+        }
+        break;
+
+    case 'supplier_import_process':
+        $taskId = $_POST['task_id'] ?? $_GET['task_id'] ?? 0;
+        $operator = $_POST['operator'] ?? $_GET['operator'] ?? 'system';
+        $helper = getImportHelper();
+        try {
+            if (!$taskId) {
+                throw new Exception('任务ID不能为空');
+            }
+            $result = $helper->processTask($taskId);
+            if (isset($result['success']) && !$result['success']) {
+                $helper->addOperationLog(
+                    $operator,
+                    ImportHelper::OP_PROCESS_IMPORT,
+                    ImportHelper::OP_STATUS_FAIL,
+                    $taskId,
+                    isset($result['message']) ? $result['message'] : '导入处理失败'
+                );
+                echo json_encode([
+                    'code' => 1,
+                    'message' => $result['message'] ?? '导入处理失败',
+                ], JSON_UNESCAPED_UNICODE);
+                break;
+            }
+            $helper->addOperationLog(
+                $operator,
+                ImportHelper::OP_PROCESS_IMPORT,
+                ImportHelper::OP_STATUS_SUCCESS,
+                $taskId,
+                "导入处理完成: 总计 {$result['total']} 行, 成功 {$result['success_count']} 行, 失败 {$result['fail_count']} 行"
+            );
+            echo json_encode([
+                'code' => 0,
+                'message' => '导入处理完成',
+                'data' => $result,
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            $helper->addOperationLog(
+                $operator,
+                ImportHelper::OP_PROCESS_IMPORT,
+                ImportHelper::OP_STATUS_FAIL,
+                $taskId,
+                '导入处理异常: ' . $e->getMessage()
+            );
+            echo json_encode([
+                'code' => 1,
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE);
+        }
+        break;
+
+    case 'supplier_import_tasks':
+        $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+        $pageSize = isset($_GET['pageSize']) ? max(1, (int)$_GET['pageSize']) : 20;
+        try {
+            $helper = getImportHelper();
+            $result = $helper->getTaskList($page, $pageSize);
+            echo json_encode([
+                'code' => 0,
+                'data' => $result,
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            echo json_encode([
+                'code' => 1,
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE);
+        }
+        break;
+
+    case 'supplier_import_fail_details':
+        $taskId = $_GET['task_id'] ?? 0;
+        $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+        $pageSize = isset($_GET['pageSize']) ? max(1, (int)$_GET['pageSize']) : 50;
+        $operator = $_GET['operator'] ?? 'system';
+        $helper = getImportHelper();
+        try {
+            if (!$taskId) {
+                throw new Exception('任务ID不能为空');
+            }
+            $result = $helper->getFailDetails($taskId, $page, $pageSize);
+            $task = $helper->getTaskById($taskId);
+            $helper->addOperationLog(
+                $operator,
+                ImportHelper::OP_VIEW_FAIL,
+                ImportHelper::OP_STATUS_SUCCESS,
+                $taskId,
+                "查看失败明细: 任务 {$taskId}, 共 " . ($task['fail_count'] ?? 0) . " 条失败记录"
+            );
+            echo json_encode([
+                'code' => 0,
+                'data' => $result,
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            $helper->addOperationLog(
+                $operator,
+                ImportHelper::OP_VIEW_FAIL,
+                ImportHelper::OP_STATUS_FAIL,
+                $taskId,
+                '查看失败明细失败: ' . $e->getMessage()
+            );
+            echo json_encode([
+                'code' => 1,
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE);
+        }
+        break;
+
+    case 'supplier_import_fail_export':
+        $taskId = $_GET['task_id'] ?? 0;
+        $operator = $_GET['operator'] ?? 'system';
+        $helper = getImportHelper();
+        try {
+            if (!$taskId) {
+                throw new Exception('任务ID不能为空');
+            }
+            $task = $helper->getTaskById($taskId);
+            if (!$task) {
+                throw new Exception('任务不存在');
+            }
+            global $config;
+            $columns = $config['import']['template_columns'];
+            $headers = array_values($columns);
+            $colKeys = array_keys($columns);
+            array_unshift($headers, '行号', '错误信息');
+            $filename = '失败明细_' . $task['file_name'] . '_' . date('YmdHis') . '.csv';
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            $output = fopen('php://output', 'w');
+            fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($output, $headers);
+            $page = 1;
+            $pageSize = 500;
+            do {
+                $result = $helper->getFailDetails($taskId, $page, $pageSize);
+                foreach ($result['list'] as $item) {
+                    $row = [$item['row_number'], $item['error_message']];
+                    $rowData = $item['row_data'] ?: [];
+                    foreach ($colKeys as $key) {
+                        $row[] = isset($rowData[$key]) ? $rowData[$key] : '';
+                    }
+                    fputcsv($output, $row);
+                }
+                $page++;
+            } while (!empty($result['list']) && count($result['list']) >= $pageSize);
+            fclose($output);
+            $helper->addOperationLog(
+                $operator,
+                ImportHelper::OP_EXPORT_FAIL,
+                ImportHelper::OP_STATUS_SUCCESS,
+                $taskId,
+                "导出失败明细: 任务 {$taskId}, 共 " . ($task['fail_count'] ?? 0) . " 条失败记录"
+            );
+            exit;
+        } catch (Exception $e) {
+            $helper->addOperationLog(
+                $operator,
+                ImportHelper::OP_EXPORT_FAIL,
+                ImportHelper::OP_STATUS_FAIL,
+                $taskId,
+                '导出失败明细失败: ' . $e->getMessage()
+            );
+            echo json_encode([
+                'code' => 1,
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE);
+        }
+        break;
+
+    case 'supplier_operation_logs':
+        $params = [
+            'task_id' => $_GET['task_id'] ?? null,
+            'operator' => $_GET['operator'] ?? null,
+            'operation_type' => $_GET['operation_type'] ?? null,
+            'page' => $_GET['page'] ?? 1,
+            'pageSize' => $_GET['pageSize'] ?? 20,
+        ];
+        try {
+            $helper = getImportHelper();
+            $result = $helper->getOperationLogs($params);
+            echo json_encode([
+                'code' => 0,
+                'data' => $result,
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            echo json_encode([
+                'code' => 1,
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE);
+        }
+        break;
+
+    case 'supplier_add_operation_log':
+        $operator = $_POST['operator'] ?? $_GET['operator'] ?? 'system';
+        $operationType = $_POST['operation_type'] ?? $_GET['operation_type'] ?? '';
+        $status = isset($_POST['status']) ? (int)$_POST['status'] : (isset($_GET['status']) ? (int)$_GET['status'] : 1);
+        $taskId = $_POST['task_id'] ?? $_GET['task_id'] ?? null;
+        $remark = $_POST['remark'] ?? $_GET['remark'] ?? null;
+        try {
+            if (!$operationType) {
+                throw new Exception('操作类型不能为空');
+            }
+            $helper = getImportHelper();
+            $logId = $helper->addOperationLog($operator, $operationType, $status, $taskId, $remark);
+            echo json_encode([
+                'code' => 0,
+                'message' => '操作记录已添加',
+                'data' => ['log_id' => $logId],
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            echo json_encode([
+                'code' => 1,
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE);
+        }
+        break;
+
     default:
         echo json_encode([
             'code' => 0,
-            'message' => 'Supported actions: get_translations, translate, get_meta, get_rates, convert, refresh_rates, get_courses',
+            'message' => 'Supported actions: get_translations, translate, get_meta, get_rates, convert, refresh_rates, get_courses, supplier_import_template, supplier_import_upload, supplier_import_process, supplier_import_tasks, supplier_import_fail_details, supplier_import_fail_export, supplier_operation_logs, supplier_add_operation_log',
         ], JSON_UNESCAPED_UNICODE);
 }
 

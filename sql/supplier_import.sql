@@ -44,3 +44,21 @@ CREATE TABLE IF NOT EXISTS `supplier_import_fail_details` (
   PRIMARY KEY (`id`),
   KEY `idx_task_id` (`task_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='供应商导入失败明细';
+
+-- 操作记录表
+CREATE TABLE IF NOT EXISTS `supplier_operation_logs` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `task_id` int(11) DEFAULT NULL COMMENT '关联任务ID',
+  `operator` varchar(100) NOT NULL DEFAULT 'system' COMMENT '操作人',
+  `operation_type` varchar(50) NOT NULL COMMENT '操作类型: download_template, upload_file, process_import, view_fail, export_fail, refresh_history',
+  `operation_status` tinyint(1) NOT NULL DEFAULT 1 COMMENT '操作状态: 0失败 1成功',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注/详情',
+  `ip_address` varchar(50) DEFAULT NULL COMMENT 'IP地址',
+  `user_agent` varchar(500) DEFAULT NULL COMMENT '用户代理',
+  `created_at` datetime NOT NULL COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_task_id` (`task_id`),
+  KEY `idx_operator` (`operator`),
+  KEY `idx_operation_type` (`operation_type`),
+  KEY `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='供应商操作记录表';

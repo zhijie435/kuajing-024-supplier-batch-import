@@ -14,6 +14,16 @@ class ImportHelper {
     const ROW_STATUS_SUCCESS = 1;
     const ROW_STATUS_FAILED = 2;
 
+    const OP_DOWNLOAD_TEMPLATE = 'download_template';
+    const OP_UPLOAD_FILE = 'upload_file';
+    const OP_PROCESS_IMPORT = 'process_import';
+    const OP_VIEW_FAIL = 'view_fail';
+    const OP_EXPORT_FAIL = 'export_fail';
+    const OP_REFRESH_HISTORY = 'refresh_history';
+
+    const OP_STATUS_SUCCESS = 1;
+    const OP_STATUS_FAIL = 0;
+
     public function __construct() {
         $this->db = Database::getInstance();
         $this->config = require __DIR__ . '/../config.php';
@@ -306,5 +316,71 @@ class ImportHelper {
         fputcsv($output, $example);
         fclose($output);
         exit;
+    }
+
+    public function addOperationLog($operator, $operationType, $status, $taskId = null, $remark = null) {
+        $ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : null;
+        $ua = isset($_SERVER['HTTP_USER_AGENT']) ? substr($_SERVER['HTTP_USER_AGENT'], 0, 500) : null;
+        return $this->db->insert('supplier_operation_logs', [
+            'task_id' => $taskId,
+            'operator' => $operator,
+            'operation_type' => $operationType,
+            'operation_status' => $status,
+            'remark' => $remark,
+            'ip_address' => $ip,
+            'user_agent' => $ua,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    public function getOperationLogs($params = []) {
+        $page = isset($params['page']) ? max(1, (int)$params['page']) : 1;
+        $pageSize = isset($params['pageSize']) ? max(1, (int)$params['pageSize']) : 20;
+        $offset = ($page - 1) * $pageSize;
+
+        $where = [];
+        $bind = [];
+        if (!empty($params['task_id'])) {
+            $where[] = 'task_id = :task_id';
+            $bind['task_id'] = (int)$params['task_id'];
+        }
+        if (!empty($params['operator'])) {
+            $where[] = 'operator = :operator';
+            $bind['operator'] = $params['operator'];
+        }
+        if (!empty($params['operation_type'])) {
+            $where[] = 'operation_type = :operation_type';
+            $bind['operation_type'] = $params['operation_type'];
+        }
+
+        $whereSQL = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        $list = $this->db->fetchAll(
+            "SELECT * FROM supplier_operation_logs {$whereSQL} ORDER BY created_at DESC LIMIT :offset, :pageSize",
+            array_merge($bind, [
+                'offset' => (int)$offset,
+                'pageSize' => (int)$pageSize,
+            ])
+        );
+
+        $totalSQL = "SELECT COUNT(*) as cnt FROM supplier_operation_logs {$whereSQL}";
+        $total = $this->db->fetch($totalSQL, $bind);
+
+        return [
+            'list' => $list,
+            'pagination' => [
+                'page' => $page,
+                'pageSize' => $pageSize,
+                'total' => (int)$total['cnt'],
+                'totalPages' => (int)ceil($total['cnt'] / $pageSize),
+            ],
+        ];
+    }
+
+    public function getTaskById($taskId) {
+        return $this->db->fetch(
+            'SELECT * FROM supplier_import_tasks WHERE id = :id',
+            ['id' => (int)$taskId]
+        );
     }
 }

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>供应商管理 - 在线课程教务系统</title>
+  <link rel="stylesheet" href="css/common.css">
+</head>
+<body>
+  <div id="app">
+    <div class="page-container">
+      <div class="page-header">
+        <h1 class="page-title">{{ t('supplier.title') }}</h1>
+        <div class="page-actions">
+          <button class="btn" @click="showHistory = true">
+            <span>📋</span>
+            <span>{{ t('supplier.import_history') }}</span>
+          </button>
+          <button class="btn btn-primary" @click="showImport = true">
+            <span>📥</span>
+            <span>{{ t('supplier.import') }}</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <div class="search-box">
+              <input
+                type="text"
+                class="input input-lg"
+                :placeholder="t('supplier.search_placeholder')"
+                v-model="keyword"
+                @keyup.enter="handleSearch"
+              >
+              <button class="btn btn-primary btn-lg" @click="handleSearch">搜索</button>
+            </div>
+          </div>
+          <div class="toolbar-right">
+            <button class="btn" @click="handleRefresh">
+              <span>↻</span>
+              <span>{{ t('supplier.refresh') }}</span>
+            </button>
+          </div>
+        </div>
+
+        <div v-if="loading" style="text-align: center; padding: 60px;">
+          <div class="loading-text" style="justify-content: center;">
+            <span class="loading-spinner"></span>
+            <span>{{ t('common.loading') }}</span>
+          </div>
+        </div>
+
+        <div v-else-if="list.length === 0" class="empty-state">
+          <div class="empty-state-icon">📭</div>
+          <div class="empty-state-text">{{ t('common.no_data') }}</div>
+        </div>
+
+        <table v-else class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>{{ t('supplier.company_name') }}</th>
+              <th>{{ t('supplier.unified_social_credit_code') }}</th>
+              <th>{{ t('supplier.legal_person') }}</th>
+              <th>{{ t('supplier.contact_name') }}</th>
+              <th>{{ t('supplier.contact_phone') }}</th>
+              <th>{{ t('supplier.status') }}</th>
+              <th>{{ t('supplier.created_at') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in list" :key="item.id">
+              <td>{{ item.id }}</td>
+              <td>{{ item.company_name }}</td>
+              <td>{{ item.unified_social_credit_code }}</td>
+              <td>{{ item.legal_person }}</td>
+              <td>{{ item.contact_name }}</td>
+              <td>{{ item.contact_phone }}</td>
+              <td>
+                <span :class="getStatusClass(item.status)">{{ getStatusText(item.status) }}</span>
+              </td>
+              <td>{{ item.created_at }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div v-if="total > 0" class="pagination">
+          <span class="pagination-info">共 {{ total }} 条</span>
+          <button
+            class="pagination-btn"
+            @click="handlePageChange(page - 1)"
+            :disabled="page <= 1"
+          >上一页</button>
+          <button
+            v-for="p in visiblePages"
+            :key="p"
+            class="pagination-btn"
+            :class="{ active: p === page }"
+            @click="handlePageChange(p)"
+          >{{ p }}</button>
+          <button
+            class="pagination-btn"
+            @click="handlePageChange(page + 1)"
+            :disabled="page >= totalPages"
+          >下一页</button>
+        </div>
+      </div>
+    </div>
+
+    <ImportModal
+      :visible="showImport"
+      :t="t"
+      @close="showImport = false"
+      @success="handleImportSuccess"
+    />
+
+    <ImportHistoryModal
+      :visible="showHistory"
+      :t="t"
+      @close="showHistory = false"
+      @view-fail="handleViewFail"
+    />
+
+    <FailDetailModal
+      :visible="showFailDetail"
+      :task-id="currentTaskId"
+      :t="t"
+      @close="showFailDetail = false"
+    />
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script type="module" src="js/supplier_list.js"></script>
+</body>
+</html>
