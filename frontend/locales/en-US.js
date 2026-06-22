@@ -1,0 +1,36 @@
+export const enUS = {
+  app: {
+    title: 'Online Course Management System', subtitle: 'Professional Learning Platform',
+    home: 'Home', courses: 'Courses', dashboard: 'Dashboard', profile: 'Profile',
+    login: 'Login', logout: 'Logout', register: 'Register', search: 'Search courses...',
+  },
+  course: {
+    list: 'Course List', detail: 'Course Detail', price: 'Course Price', original_price: 'Original Price',
+    discount_price: 'Discount Price', free: 'Free', enroll: 'Enroll Now', enrolled: 'Enrolled',
+    students: 'Students', rating: 'Rating', duration: 'Duration', level: 'Level',
+    level_beginner: 'Beginner', level_intermediate: 'Intermediate', level_advanced: 'Advanced',
+    category: 'Category', teacher: 'Instructor', start_date: 'Start Date',
+    lessons_count: '{count} Lessons',
+  },
+  currency: {
+    label: 'Currency', cny: 'CNY', usd: 'USD', jpy: 'JPY', eur: 'EUR', hkd: 'HKD',
+  },
+  lang: { label: 'Language', zh_cn: '简体中文', en_us: 'English', ja_jp: '日本語' },
+  common: {
+    loading: 'Loading...', error: 'Something went wrong', success: 'Operation successful',
+    confirm: 'Confirm', cancel: 'Cancel', save: 'Save', delete: 'Delete', edit: 'Edit',
+    back: 'Back', more: 'View More', read_more: 'Read More', refresh: 'Refresh Rates',
+    no_data: 'No data available', welcome: 'Welcome back, {name}',
+    copyright: '© {year} Online Course Management System. All rights reserved.',
+  },
+  demo: {
+    title: 'Multi-Language & Multi-Currency Demo',
+    desc_1: 'Switch language and currency above to see real-time changes.',
+    desc_2: 'Japanese locale has missing keys, fallback to English then Chinese.',
+    desc_3: 'When exchange rate API is unavailable, fallback rates are used.',
+    fallback_test: 'Fallback test string (CN only)',
+    currency_convert: 'Currency Converter', original_amount: 'Base Amount', converted_amount: 'Converted Amount',
+    base_currency: 'Base Currency', target_currency: 'Target Currency', exchange_rates: 'Exchange Rates',
+    all_courses: 'All Courses', notes: 'Fallback Demo (Japanese Mode)',
+  },
+};
