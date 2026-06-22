@@ -1,211 +1,126 @@
 <?php
+
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
+header('Access-Control-Allow-Headers: Content-Type');
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
 
-require_once __DIR__ . '/../classes/Database.php';
-require_once __DIR__ . '/../classes/ImportHelper.php';
-$config = require __DIR__ . '/../config.php';
-
-function json_response($code, $message, $data = null) {
-    echo json_encode([
-        'code' => $code,
-        'message' => $message,
-        'data' => $data,
-    ], JSON_UNESCAPED_UNICODE);
-    exit;
-}
+require_once __DIR__ . '/../bootstrap.php';
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
+$lang = $_GET['lang'] ?? $_POST['lang'] ?? null;
 
-try {
-    switch ($action) {
-        case 'supplier_list':
-            handleSupplierList();
-            break;
-        case 'supplier_import_template':
-            handleImportTemplate();
-            break;
-        case 'supplier_import_upload':
-            handleImportUpload();
-            break;
-        case 'supplier_import_process':
-            handleImportProcess();
-            break;
-        case 'supplier_import_tasks':
-            handleImportTasks();
-            break;
-        case 'supplier_import_fail_details':
-            handleFailDetails();
-            break;
-        case 'supplier_import_fail_export':
-            handleFailExport();
-            break;
-        default:
-            json_response(1, '未知的操作: ' . $action);
-    }
-} catch (Exception $e) {
-    json_response(1, $e->getMessage());
+if ($lang) {
+    I18n::setLang($lang);
 }
 
-function handleSupplierList() {
-    global $config;
-    $db = Database::getInstance();
-    $page = (int)($_GET['page'] ?? 1);
-    $pageSize = (int)($_GET['pageSize'] ?? 20);
-    $keyword = $_GET['keyword'] ?? '';
-    $offset = ($page - 1) * $pageSize;
-    $where = 'WHERE 1=1';
-    $params = [];
-    if (!empty($keyword)) {
-        $where .= ' AND (company_name LIKE :kw OR unified_social_credit_code LIKE :kw OR contact_name LIKE :kw OR contact_phone LIKE :kw)';
-        $params['kw'] = '%' . $keyword . '%';
-    }
-    $sql = "SELECT * FROM supplier_kyb {$where} ORDER BY created_at DESC LIMIT :offset, :pageSize";
-    $list = $db->fetchAll($sql, array_merge($params, [
-        'offset' => (int)$offset,
-        'pageSize' => (int)$pageSize,
-    ]));
-    $countSql = "SELECT COUNT(*) as cnt FROM supplier_kyb {$where}";
-    $total = $db->fetch($countSql, $params);
-    json_response(0, 'success', [
-        'list' => $list,
-        'pagination' => [
-            'page' => $page,
-            'pageSize' => $pageSize,
-            'total' => (int)$total['cnt'],
-            'totalPages' => (int)ceil($total['cnt'] / $pageSize),
-        ],
-    ]);
-}
+switch ($action) {
+    case 'get_translations':
+        $translations = I18n::getAllTranslations();
+        echo json_encode([
+            'code' => 0,
+            'data' => [
+                'lang' => I18n::getLang(),
+                'supported_langs' => I18n::getSupportedLangs(),
+                'translations' => $translations,
+            ],
+        ], JSON_UNESCAPED_UNICODE);
+        break;
 
-function handleImportTemplate() {
-    $helper = new ImportHelper();
-    $helper->generateTemplateCSV();
-}
+    case 'translate':
+        $key = $_GET['key'] ?? '';
+        $params = isset($_GET['params']) ? json_decode($_GET['params'], true) : [];
+        if (!is_array($params)) $params = [];
+        $result = I18n::t($key, $params);
+        echo json_encode([
+            'code' => 0,
+            'data' => $result,
+        ], JSON_UNESCAPED_UNICODE);
+        break;
 
-function handleImportUpload() {
-    global $config;
-    if (empty($_FILES['file'])) {
-        json_response(1, '请选择要上传的文件');
-    }
-    $file = $_FILES['file'];
-    if ($file['error'] !== UPLOAD_ERR_OK) {
-        json_response(1, '文件上传失败，错误码: ' . $file['error']);
-    }
-    if ($file['size'] > $config['upload']['max_size']) {
-        json_response(1, '文件大小超过限制，最大支持 ' . round($config['upload']['max_size'] / 1024 / 1024, 2) . 'MB');
-    }
-    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    if (!in_array($ext, $config['upload']['allowed_extensions'])) {
-        json_response(1, '不支持的文件格式，仅支持: ' . implode(', ', $config['upload']['allowed_extensions']));
-    }
-    $uploadDir = $config['upload']['dir'];
-    if (!is_dir($uploadDir)) {
-        mkdir($uploadDir, 0755, true);
-    }
-    $subDir = date('Ymd') . '/';
-    if (!is_dir($uploadDir . $subDir)) {
-        mkdir($uploadDir . $subDir, 0755, true);
-    }
-    $fileName = uniqid('import_') . '.' . $ext;
-    $filePath = $uploadDir . $subDir . $fileName;
-    if (!move_uploaded_file($file['tmp_name'], $filePath)) {
-        json_response(1, '文件保存失败，请检查目录权限');
-    }
-    $totalRows = 0;
-    $handle = fopen($filePath, 'r');
-    if ($handle) {
-        while (fgetcsv($handle) !== false) {
-            $totalRows++;
+    case 'get_meta':
+        global $config;
+        echo json_encode([
+            'code' => 0,
+            'data' => [
+                'lang' => I18n::getLang(),
+                'supported_langs' => I18n::getSupportedLangs(),
+                'currency' => Currency::getCurrency(),
+                'supported_currencies' => Currency::getSupportedCurrencies(),
+                'base_currency' => $config['base_currency'],
+            ],
+        ], JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'get_rates':
+        $rates = Currency::getRates();
+        $symbols = [];
+        foreach (Currency::getSupportedCurrencies() as $c) {
+            $symbols[$c] = Currency::getSymbol($c);
         }
-        fclose($handle);
-        $totalRows = max(0, $totalRows - 1);
-    }
-    $helper = new ImportHelper();
-    $operator = $_POST['operator'] ?? 'system';
-    $taskId = $helper->createTask($file['name'], $filePath, $totalRows, $operator);
-    json_response(0, '上传成功', [
-        'task_id' => $taskId,
-        'file_name' => $file['name'],
-        'total_rows' => $totalRows,
-    ]);
+        global $config;
+        echo json_encode([
+            'code' => 0,
+            'data' => [
+                'base' => $config['base_currency'],
+                'currency' => Currency::getCurrency(),
+                'supported_currencies' => Currency::getSupportedCurrencies(),
+                'rates' => $rates,
+                'symbols' => $symbols,
+                'using_fallback' => Currency::isUsingFallback(),
+            ],
+        ], JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'convert':
+        $amount = $_GET['amount'] ?? 0;
+        $from = $_GET['from'] ?? null;
+        $to = $_GET['to'] ?? null;
+        $formatted = isset($_GET['format']) && $_GET['format'] === '1';
+        $result = $formatted
+            ? Currency::format($amount, $to, I18n::getLang())
+            : Currency::convert($amount, $from, $to);
+        echo json_encode([
+            'code' => 0,
+            'data' => $result,
+        ], JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'refresh_rates':
+        $ok = Currency::refreshRates();
+        echo json_encode([
+            'code' => $ok ? 0 : 1,
+            'message' => $ok ? 'Rates refreshed' : 'Failed to refresh, using fallback',
+            'data' => Currency::getRates(),
+        ], JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'get_courses':
+        $courses = getCourses();
+        echo json_encode([
+            'code' => 0,
+            'data' => $courses,
+        ], JSON_UNESCAPED_UNICODE);
+        break;
+
+    default:
+        echo json_encode([
+            'code' => 0,
+            'message' => 'Supported actions: get_translations, translate, get_meta, get_rates, convert, refresh_rates, get_courses',
+        ], JSON_UNESCAPED_UNICODE);
 }
 
-function handleImportProcess() {
-    $taskId = (int)($_POST['task_id'] ?? $_GET['task_id'] ?? 0);
-    if (!$taskId) {
-        json_response(1, '缺少task_id参数');
-    }
-    $helper = new ImportHelper();
-    $result = $helper->processTask($taskId);
-    if ($result['success']) {
-        json_response(0, '导入完成', $result);
-    } else {
-        json_response(1, $result['message'] ?? '导入失败');
-    }
-}
-
-function handleImportTasks() {
-    $page = (int)($_GET['page'] ?? 1);
-    $pageSize = (int)($_GET['pageSize'] ?? 20);
-    $helper = new ImportHelper();
-    $result = $helper->getTaskList($page, $pageSize);
-    json_response(0, 'success', $result);
-}
-
-function handleFailDetails() {
-    $taskId = (int)($_GET['task_id'] ?? 0);
-    if (!$taskId) {
-        json_response(1, '缺少task_id参数');
-    }
-    $page = (int)($_GET['page'] ?? 1);
-    $pageSize = (int)($_GET['pageSize'] ?? 50);
-    $helper = new ImportHelper();
-    $result = $helper->getFailDetails($taskId, $page, $pageSize);
-    json_response(0, 'success', $result);
-}
-
-function handleFailExport() {
-    global $config;
-    $taskId = (int)($_GET['task_id'] ?? 0);
-    if (!$taskId) {
-        json_response(1, '缺少task_id参数');
-    }
-    $helper = new ImportHelper();
-    $db = Database::getInstance();
-    $task = $db->fetch('SELECT * FROM supplier_import_tasks WHERE id = :id', ['id' => $taskId]);
-    if (!$task) {
-        json_response(1, '任务不存在');
-    }
-    $details = $db->fetchAll(
-        'SELECT * FROM supplier_import_fail_details WHERE task_id = :task_id ORDER BY row_number ASC',
-        ['task_id' => $taskId]
-    );
-    $columns = $config['import']['template_columns'];
-    $headers = array_values($columns);
-    $headers[] = '错误信息';
-    $filename = '导入失败明细_' . $taskId . '_' . date('YmdHis') . '.csv';
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    $output = fopen('php://output', 'w');
-    fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF));
-    fputcsv($output, $headers);
-    foreach ($details as $detail) {
-        $rowData = json_decode($detail['row_data'], true);
-        $row = [];
-        foreach (array_keys($columns) as $col) {
-            $row[] = $rowData[$col] ?? '';
-        }
-        $row[] = $detail['error_message'];
-        fputcsv($output, $row);
-    }
-    fclose($output);
-    exit;
+function getCourses()
+{
+    return [
+        ['id' => 1, 'title' => 'Vue 3 ' . I18n::t('course.list'), 'desc' => 'Vue 3 Composition API Mastery', 'teacher' => 'Teacher A', 'price' => 299, 'original_price' => 499, 'students' => 1234, 'rating' => 4.8, 'level' => 'beginner', 'lessons' => 24],
+        ['id' => 2, 'title' => 'PHP 8 ' . I18n::t('course.list'), 'desc' => 'PHP OOP and Design Patterns', 'teacher' => 'Teacher B', 'price' => 599, 'original_price' => 899, 'students' => 876, 'rating' => 4.9, 'level' => 'intermediate', 'lessons' => 48],
+        ['id' => 3, 'title' => 'Microservices ' . I18n::t('course.list'), 'desc' => 'Build scalable systems', 'teacher' => 'Teacher C', 'price' => 1299, 'original_price' => 1999, 'students' => 432, 'rating' => 4.7, 'level' => 'advanced', 'lessons' => 72],
+        ['id' => 4, 'title' => 'Free Intro to Coding ' . I18n::t('course.list'), 'desc' => 'First steps into programming', 'teacher' => 'Teacher D', 'price' => 0, 'original_price' => 0, 'students' => 5678, 'rating' => 4.6, 'level' => 'beginner', 'lessons' => 12],
+    ];
 }
