@@ -19,8 +19,21 @@ return [
         'max_size' => (int)env('UPLOAD_MAX_SIZE', 10485760),
         'dir' => env('UPLOAD_DIR', __DIR__ . '/uploads/'),
         'base_url' => env('UPLOAD_BASE_URL', 'backend/uploads/'),
-        'allowed_mime_types' => json_decode(env('UPLOAD_ALLOWED_MIME_TYPES', '{"text\/csv":"csv","application\/vnd.ms-excel":"csv"}'), true),
-        'allowed_extensions' => json_decode(env('UPLOAD_ALLOWED_EXTENSIONS', '["csv","xlsx","xls"]'), true),
+        'allowed_mime_types' => json_decode(env('UPLOAD_ALLOWED_MIME_TYPES', '{"image\/jpeg":"jpg","image\/png":"png","image\/gif":"gif","application\/pdf":"pdf"}'), true),
+        'allowed_extensions' => json_decode(env('UPLOAD_ALLOWED_EXTENSIONS', '["jpg","jpeg","png","gif","pdf"]'), true),
+        'allowed_types' => json_decode(env('UPLOAD_ALLOWED_TYPES', '["business_license","legal_person_id_front","legal_person_id_back","other"]'), true),
+    ],
+    'kyb' => [
+        'required_fields' => json_decode(env('KYB_REQUIRED_FIELDS', '["company_name","unified_social_credit_code","legal_person","contact_name","contact_phone"]'), true),
+        'required_certs' => json_decode(env('KYB_REQUIRED_CERTS', '["business_license","legal_person_id_front","legal_person_id_back"]'), true),
+        'status_pending' => (int)env('KYB_STATUS_PENDING', 0),
+        'status_approved' => (int)env('KYB_STATUS_APPROVED', 1),
+        'status_rejected' => (int)env('KYB_STATUS_REJECTED', 2),
+        'cert_names' => [
+            'business_license' => '营业执照',
+            'legal_person_id_front' => '法人身份证正面',
+            'legal_person_id_back' => '法人身份证反面',
+        ],
     ],
     'import' => [
         'batch_size' => 100,

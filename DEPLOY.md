@@ -57,6 +57,9 @@
 |---------|------|--------|------|
 | `KYB_REQUIRED_FIELDS` | 必填企业资料字段（JSON数组） | `["company_name","unified_social_credit_code","legal_person","contact_name","contact_phone"]` | - |
 | `KYB_REQUIRED_CERTS` | 必填证照字段（JSON数组） | `["business_license","legal_person_id_front","legal_person_id_back"]` | - |
+| `KYB_STATUS_PENDING` | 待审核状态值 | `0` | - |
+| `KYB_STATUS_APPROVED` | 审核通过状态值 | `1` | - |
+| `KYB_STATUS_REJECTED` | 审核拒绝状态值 | `2` | - |
 
 ### 3.4 配置方式示例
 
@@ -377,7 +380,7 @@ A: 目前仅支持中国大陆手机号（1 开头的 11 位数字）。
 A: 已通过审核的企业资料锁定，如需修改请联系管理员重新审核。
 
 ### Q5: 如何配置跨域访问
-A: 在 `backend/config/common.php` 中已设置 `Access-Control-Allow-Origin: *`，如需限制域名请修改对应 header。
+A: 在后端 API 中已设置 `Access-Control-Allow-Origin: *`，如需限制域名请修改对应 header。
 
 ### Q6: 上传文件大小限制如何修改
 A: 设置环境变量 `UPLOAD_MAX_SIZE`（单位：字节），同时需确保 PHP 配置 `upload_max_filesize` 和 `post_max_size` 足够大。
@@ -389,23 +392,12 @@ A: 设置环境变量 `UPLOAD_MAX_SIZE`（单位：字节），同时需确保 P
 ```
 .
 ├── backend/                    # 后端代码
-│   ├── api/                    # API 接口
-│   │   ├── register.php        # 注册/提交接口
-│   │   ├── list.php            # 列表查询接口
-│   │   ├── detail.php          # 详情查询接口
-│   │   ├── review.php          # 审核接口
-│   │   └── upload.php          # 文件上传接口
 │   ├── classes/                # 工具类
-│   ├── config/                 # 配置文件
-│   │   └── common.php          # 公共配置和函数
-│   ├── langs/                  # 多语言包
+│   │   └── Database.php        # 数据库操作类
+│   ├── config.php              # 配置文件（环境变量配置）
 │   └── uploads/                # 上传文件目录（需可写）
 ├── frontend/                   # 前端代码
-│   ├── index.html              # 注册页面
-│   ├── list.html               # 列表页面
-│   ├── detail.html             # 详情页面
-│   ├── css/                    # 样式文件
-│   ├── js/                     # JavaScript
+│   ├── assets/                 # 静态资源
 │   ├── locales/                # 前端多语言
 │   ├── utils/                  # 工具函数
 │   └── tests/                  # 测试文件
@@ -413,4 +405,23 @@ A: 设置环境变量 `UPLOAD_MAX_SIZE`（单位：字节），同时需确保 P
 │   └── supplier_kyb.sql        # KYB 表结构
 ├── DEPLOY.md                   # 本文档
 └── test.html                   # 综合测试页面
+```
+
+## 十一、配置文件说明
+
+### backend/config.php
+
+主配置文件，通过 `env()` 函数读取环境变量。包含以下配置段：
+
+- **db**: 数据库连接配置
+- **upload**: 文件上传配置（大小限制、目录、允许类型等）
+- **kyb**: KYB 业务配置（必填字段、必验证照、状态常量）
+- **import**: 批量导入配置
+
+使用方式：
+```php
+$config = require __DIR__ . '/../config.php';
+$dbConfig = $config['db'];
+$uploadConfig = $config['upload'];
+$kybConfig = $config['kyb'];
 ```
